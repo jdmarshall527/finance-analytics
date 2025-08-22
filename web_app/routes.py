@@ -3,6 +3,9 @@ API Routes for Portfolio Optimizer
 """
 from flask import jsonify, request
 import numpy as np
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from src.analysis.portfolio import PortfolioOptimizer, analyze_portfolio_with_period, get_sector_etfs
 
 
