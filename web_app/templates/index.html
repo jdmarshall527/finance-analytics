@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio Optimizer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Portfolio Optimizer</h1>
+            <p>Advanced portfolio analysis and optimization using modern financial techniques</p>
+        </div>
+        
+        <div class="content">
+            <div class="api-status" id="apiStatus">
+                <span class="status-indicator status-error"></span>
+                <span>Checking API status...</span>
+            </div>
+            
+            <!-- Tab Navigation -->
+            <div class="tab-navigation">
+                <button class="tab-button active" onclick="showTab('portfolio')">📊 Portfolio Analysis</button>
+                <button class="tab-button" onclick="showTab('help')">📖 Help & Documentation</button>
+            </div>
+            
+            <!-- Portfolio Analysis Tab -->
+            <div id="portfolio-tab" class="tab-content active">
+                <div class="section">
+                    <h2>📊 Portfolio Input</h2>
+                    <div class="form-group">
+                        <label for="tickers">Stock Tickers (comma-separated):</label>
+                        <input type="text" id="tickers" placeholder="AAPL, MSFT, GOOGL, AMZN, TSLA" value="AAPL, MSFT, GOOGL, AMZN, TSLA">
+                    </div>
+                    <div class="form-group">
+                        <label for="inputType">Input Type:</label>
+                        <select id="inputType" onchange="toggleInputType()">
+                            <option value="weights">Weights (must sum to 1)</option>
+                            <option value="dollars">Dollar Amounts</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="weightsGroup">
+                        <label for="weights">Weights (comma-separated, must sum to 1):</label>
+                        <input type="text" id="weights" placeholder="0.2, 0.2, 0.2, 0.2, 0.2" value="0.2, 0.2, 0.2, 0.2, 0.2">
+                    </div>
+                    <div class="form-group" id="dollarsGroup" style="display: none;">
+                        <label for="dollars">Dollar Amounts (comma-separated):</label>
+                        <input type="text" id="dollars" placeholder="20000, 20000, 20000, 20000, 20000" value="20000, 20000, 20000, 20000, 20000">
+                    </div>
+                    <div class="form-group">
+                        <label for="timePeriod">Analysis Time Period:</label>
+                        <select id="timePeriod">
+                            <option value="1">1 Year</option>
+                            <option value="2" selected>2 Years</option>
+                            <option value="3">3 Years</option>
+                            <option value="4">4 Years</option>
+                            <option value="5">5 Years</option>
+                            <option value="6">6 Years</option>
+                            <option value="7">7 Years</option>
+                            <option value="8">8 Years</option>
+                            <option value="9">9 Years</option>
+                            <option value="10">10 Years</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="constraint">Optimization Strategy (for optimization only):</label>
+                        <select id="constraint">
+                            <option value="max_sharpe">Maximum Sharpe Ratio</option>
+                            <option value="min_volatility">Minimum Volatility</option>
+                        </select>
+                    </div>
+                    <div class="button-group">
+                        <button onclick="analyzePortfolio()" class="analyze-btn">🔍 Analyze Portfolio</button>
+                    </div>
+                    
+                    <div class="progress-container" id="progressContainer">
+                        <div class="progress-text" id="progressText">Initializing analysis...</div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="section" id="analysisSection" style="display: none;">
+                    <button class="collapsible-header" onclick="toggleSection('analysisSection')">
+                        📈 Analysis Results
+                        <span class="toggle-icon">▼</span>
+                    </button>
+                    <div class="collapsible-content show">
+                        <div class="section-content">
+                            <div id="analysisResults"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="section" id="optimizationSection">
+                    <button class="collapsible-header" onclick="toggleSection('optimizationSection')">
+                        🎯 Optimization Results
+                        <span class="toggle-icon">▼</span>
+                    </button>
+                    <div class="collapsible-content show">
+                        <div class="section-content">
+                            <div class="form-group" style="margin-bottom: 20px;">
+                                <label for="minExposure">Minimum Exposure per Security (%):</label>
+                                <input type="text" id="minExposure" placeholder="1.0 or 1.0, 2.0, 1.5 (leave blank for 1% default)" value="">
+                                <small>Enter one number for all securities, or separate values for each security (comma-separated). Leave blank for 1% default.</small>
+                            </div>
+                            <div style="margin-bottom: 20px;">
+                                <button onclick="optimizePortfolio()" class="optimize-btn">⚡ Optimize Portfolio</button>
+                            </div>
+                            <div id="optimizationResults"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <button class="collapsible-header" onclick="toggleSection('sectorSection')">
+                        📈 Sector Recommendations
+                        <span class="toggle-icon">▼</span>
+                    </button>
+                    <div class="collapsible-content show" id="sectorSection">
+                        <div class="section-content">
+                            <button onclick="getSectors()">Get Available Sectors</button>
+                            <div id="sectorResults"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Help & Documentation Tab -->
+            <div id="help-tab" class="tab-content">
+                <div class="section help-section">
+                    <h2>📖 Help & Documentation</h2>
+                    
+                    <h3>🎯 What is Portfolio Optimization?</h3>
+                    <p>Portfolio optimization uses Modern Portfolio Theory (MPT) to find the best allocation of assets that maximizes returns for a given level of risk, or minimizes risk for a given level of return.</p>
+                    
+                    <h3>📊 Input Fields Explained</h3>
+                    
+                    <h4>Stock Tickers</h4>
+                    <ul>
+                        <li><strong>Format:</strong> Enter stock symbols separated by commas (e.g., AAPL, MSFT, GOOGL)</li>
+                        <li><strong>Examples:</strong> AAPL (Apple), MSFT (Microsoft), GOOGL (Alphabet), AMZN (Amazon), TSLA (Tesla)</li>
+                        <li><strong>Note:</strong> Use standard stock symbols as they appear on major exchanges</li>
+                    </ul>
+                    
+                    <h4>Input Type</h4>
+                    <ul>
+                        <li><strong>Weights:</strong> Enter portfolio weights as decimals that sum to 1 (e.g., 0.3, 0.3, 0.4)</li>
+                        <li><strong>Dollar Amounts:</strong> Enter actual dollar amounts invested in each stock (e.g., 30000, 30000, 40000)</li>
+                        <li><strong>Auto-conversion:</strong> Dollar amounts are automatically converted to weights</li>
+                    </ul>
+                    
+                    <h4>Analysis Time Period</h4>
+                    <ul>
+                        <li><strong>Range:</strong> 1-10 years of historical data</li>
+                        <li><strong>Default:</strong> 2 years (balanced between recent trends and statistical significance)</li>
+                        <li><strong>Shorter periods (1-3 years):</strong> More responsive to recent market conditions</li>
+                        <li><strong>Longer periods (5-10 years):</strong> More stable, captures longer-term trends</li>
+                    </ul>
+                    
+                    <h4>Minimum Exposure per Security</h4>
+                    <ul>
+                        <li><strong>Default:</strong> 1% for all securities (if left blank)</li>
+                        <li><strong>Single value:</strong> Enter one number (e.g., "2.0") to apply to all securities</li>
+                        <li><strong>Individual values:</strong> Enter comma-separated values (e.g., "1.0, 2.0, 1.5") for each security</li>
+                        <li><strong>Purpose:</strong> Ensures diversification by preventing 0% allocations in alternative optimization</li>
+                        <li><strong>Example:</strong> "2.0" means each security gets at least 2% allocation</li>
+                    </ul>
+                    
+                    <h4>Optimization Strategy</h4>
+                    <ul>
+                        <li><strong>Maximum Sharpe Ratio:</strong> Finds the portfolio with the best risk-adjusted returns</li>
+                        <li><strong>Minimum Volatility:</strong> Finds the portfolio with the lowest risk (volatility)</li>
+                    </ul>
+                    
+                    <h3>📈 Understanding the Results</h3>
+                    
+                    <h4>Portfolio Performance Metrics</h4>
+                    <ul>
+                        <li><strong>Nominal Return:</strong> Annualized expected return based on historical data (not adjusted for inflation)</li>
+                        <li><strong>Real Return:</strong> Inflation-adjusted return showing actual purchasing power growth</li>
+                        <li><strong>Volatility:</strong> Annualized standard deviation of returns (measure of risk)</li>
+                        <li><strong>Sharpe Ratio:</strong> Risk-adjusted return using nominal returns (higher is better, above 1.0 is good)</li>
+                        <li><strong>Real Sharpe Ratio:</strong> Risk-adjusted return using inflation-adjusted returns</li>
+                        <li><strong>Inflation Rate:</strong> Current annual inflation rate used for calculations (default 2.5%)</li>
+                        <li><strong>Risk Level:</strong> Categorized risk (Low: <15%, Medium: 15-25%, High: >25%)</li>
+                    </ul>
+                    
+                    <h4>Optimal Allocation</h4>
+                    <ul>
+                        <li>Shows the recommended percentage allocation for each stock</li>
+                        <li>Based on historical performance and correlation between stocks</li>
+                        <li>Designed to maximize the chosen objective (Sharpe ratio or minimize volatility)</li>
+                    </ul>
+                    
+                    <h4>Efficient Frontier</h4>
+                    <ul>
+                        <li><strong>Blue Line:</strong> Efficient frontier showing optimal risk-return combinations</li>
+                        <li><strong>Purple Dashed Line:</strong> Capital Allocation Line (CAL) showing risk-free rate combinations</li>
+                        <li><strong>Orange Star:</strong> Tangency portfolio (optimal risky portfolio)</li>
+                        <li><strong>Red Circle:</strong> Your current portfolio position</li>
+                        <li><strong>Green Diamond:</strong> Optimal portfolio based on your strategy</li>
+                    </ul>
+                    
+                    <h4>Diversification Recommendations</h4>
+                    <ul>
+                        <li><strong>Expected Return:</strong> Projected annual return if you add this asset (with change from current)</li>
+                        <li><strong>Volatility:</strong> New portfolio risk level (with change from current)</li>
+                        <li><strong>Sharpe Ratio:</strong> Risk-adjusted return improvement</li>
+                        <li><strong>Correlation:</strong> How this asset moves relative to your current portfolio</li>
+                        <li><strong>Impact:</strong> Summary of the diversification benefit</li>
+                    </ul>
+                    
+                    <h3>🔧 How to Use</h3>
+                    <ol>
+                        <li><strong>Enter your portfolio:</strong> Add stock tickers and either weights or dollar amounts</li>
+                        <li><strong>Choose time period:</strong> Select how much historical data to analyze</li>
+                        <li><strong>Analyze:</strong> Click "Analyze Portfolio" to see current performance and recommendations</li>
+                        <li><strong>Optimize:</strong> Set minimum exposure constraints and click "Optimize Portfolio"</li>
+                        <li><strong>Compare:</strong> Review both optimal and alternative allocations</li>
+                        <li><strong>Explore sectors:</strong> Use sector recommendations for diversification ideas</li>
+                    </ol>
+                    
+                    <h3>⚠️ Important Notes</h3>
+                    <ul>
+                        <li><strong>Historical Data:</strong> Results are based on historical performance and may not predict future returns</li>
+                        <li><strong>Market Conditions:</strong> Past performance doesn't guarantee future results</li>
+                        <li><strong>Diversification:</strong> Consider your investment goals and risk tolerance</li>
+                        <li><strong>Professional Advice:</strong> This tool is for educational purposes; consult financial advisors for investment decisions</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

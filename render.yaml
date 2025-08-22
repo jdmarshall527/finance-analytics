@@ -1,0 +1,13 @@
+# render.yaml - Render Blueprint for automatic deployment
+services:
+  - type: web
+    name: portfolio-optimizer
+    env: python
+    plan: free
+    buildCommand: pip install -r web_app/requirements.txt
+    startCommand: cd web_app && python app_production.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.16
+      - key: FLASK_ENV
+        value: production
