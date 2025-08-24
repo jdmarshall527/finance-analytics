@@ -13,7 +13,7 @@ import os
 # Add the project root to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from src.analysis.portfolio import PortfolioOptimizer, analyze_portfolio, analyze_portfolio_with_period, get_sector_etfs
+from src.analysis.portfolio import PortfolioOptimizer, analyze_portfolio, analyze_portfolio_with_period, get_sector_etfs, BlackLittermanModel, analyze_portfolio_black_litterman, get_data_manager
 warnings.filterwarnings('ignore')
 
 app = Flask(__name__)
@@ -334,12 +334,13 @@ HTML_TEMPLATE = '''
             
             <!-- Tab Navigation -->
             <div class="tab-navigation">
-                <button class="tab-button active" onclick="showTab('portfolio')">📊 Portfolio Analysis</button>
-                <button class="tab-button" onclick="showTab('help')">📖 Help & Documentation</button>
+                <button class="tab-button active" onclick="showTab('mpt')">📊 Modern Portfolio Theory</button>
+                <button class="tab-button" onclick="showTab('blacklitterman')">🎯 Black-Litterman Model</button>
+                <button class="tab-button" onclick="showTab('readme')">📖 README</button>
             </div>
             
-            <!-- Portfolio Analysis Tab -->
-            <div id="portfolio-tab" class="tab-content active">
+            <!-- Modern Portfolio Theory Tab -->
+            <div id="mpt-tab" class="tab-content active">
                 <div class="section">
                     <h2>📊 Portfolio Input</h2>
                 <div class="form-group">
@@ -441,15 +442,124 @@ HTML_TEMPLATE = '''
             </div>
             </div>
             
-            <!-- Help & Documentation Tab -->
-            <div id="help-tab" class="tab-content">
+            <!-- Black-Litterman Model Tab -->
+            <div id="blacklitterman-tab" class="tab-content">
+                <div class="section">
+                    <h2>🎯 Black-Litterman Model</h2>
+                    <p>The Black-Litterman model combines market equilibrium returns with your personal views to create more stable and intuitive portfolio allocations.</p>
+                    
+                    <div class="form-group">
+                        <label for="bl-tickers">Stock Tickers (comma-separated):</label>
+                        <input type="text" id="bl-tickers" placeholder="AAPL, MSFT, GOOGL, AMZN, TSLA" value="AAPL, MSFT, GOOGL, AMZN, TSLA">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="bl-inputType">Input Type:</label>
+                        <select id="bl-inputType" onchange="toggleBLInputType()">
+                            <option value="weights">Weights (must sum to 1)</option>
+                            <option value="dollars">Dollar Amounts</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group" id="bl-weightsGroup">
+                        <label for="bl-weights">Weights (comma-separated, must sum to 1):</label>
+                        <input type="text" id="bl-weights" placeholder="0.2, 0.2, 0.2, 0.2, 0.2" value="0.2, 0.2, 0.2, 0.2, 0.2">
+                    </div>
+                    
+                    <div class="form-group" id="bl-dollarsGroup" style="display: none;">
+                        <label for="bl-dollars">Dollar Amounts (comma-separated):</label>
+                        <input type="text" id="bl-dollars" placeholder="20000, 20000, 20000, 20000, 20000" value="20000, 20000, 20000, 20000, 20000">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="bl-timePeriod">Analysis Time Period:</label>
+                        <select id="bl-timePeriod">
+                            <option value="1">1 Year</option>
+                            <option value="2" selected>2 Years</option>
+                            <option value="3">3 Years</option>
+                            <option value="4">4 Years</option>
+                            <option value="5">5 Years</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="bl-riskFreeRate">Risk-Free Rate (%):</label>
+                        <input type="number" id="bl-riskFreeRate" placeholder="2.0" value="2.0" step="0.1" min="0" max="10">
+                    </div>
+                    
+                    <div class="section">
+                        <h3>📝 Investor Views (Optional)</h3>
+                        <p>Add your personal views about expected returns. Leave empty to use market equilibrium only.</p>
+                        
+                        <div id="views-container">
+                            <div class="view-entry">
+                                <div class="form-group">
+                                    <label>View Type:</label>
+                                    <select class="view-type">
+                                        <option value="absolute">Absolute Return</option>
+                                        <option value="relative">Relative Return</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Assets:</label>
+                                    <input type="text" class="view-assets" placeholder="AAPL, MSFT">
+                                </div>
+                                <div class="form-group">
+                                    <label>Expected Return (%):</label>
+                                    <input type="number" class="view-return" placeholder="15.0" step="0.1">
+                                </div>
+                                <div class="form-group">
+                                    <label>Confidence (0-1):</label>
+                                    <input type="number" class="view-confidence" placeholder="0.7" step="0.1" min="0" max="1">
+                                </div>
+                                <button type="button" onclick="removeView(this)" style="background: #e74c3c;">Remove View</button>
+                            </div>
+                        </div>
+                        
+                        <button type="button" onclick="addView()" style="background: #27ae60;">Add View</button>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button onclick="analyzeBlackLitterman()" class="analyze-btn">🔍 Analyze with Black-Litterman</button>
+                    </div>
+                    
+                    <div class="progress-container" id="bl-progressContainer">
+                        <div class="progress-text" id="bl-progressText">Initializing analysis...</div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="bl-progressFill"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="section" id="bl-analysisSection" style="display: none;">
+                    <button class="collapsible-header" onclick="toggleSection('bl-analysisSection')">
+                        📈 Black-Litterman Results
+                        <span class="toggle-icon">▼</span>
+                    </button>
+                    <div class="collapsible-content show">
+                        <div class="section-content">
+                            <div id="bl-analysisResults"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- README Tab -->
+            <div id="readme-tab" class="tab-content">
                 <div class="section help-section">
                     <h2>📖 Help & Documentation</h2>
                     
-                    <h3>🎯 What is Portfolio Optimization?</h3>
-                    <p>Portfolio optimization uses Modern Portfolio Theory (MPT) to find the best allocation of assets that maximizes returns for a given level of risk, or minimizes risk for a given level of return.</p>
+                    <h3>🎯 Portfolio Optimization Models</h3>
+                    
+                    <h4>Modern Portfolio Theory (MPT)</h4>
+                    <p>Modern Portfolio Theory uses historical data to find the best allocation of assets that maximizes returns for a given level of risk, or minimizes risk for a given level of return. It's based on the principle that an investment's risk and return should not be assessed individually, but by how it contributes to a portfolio's overall risk and return.</p>
+                    
+                    <h4>Black-Litterman Model</h4>
+                    <p>The Black-Litterman model combines market equilibrium returns with your personal views to create more stable and intuitive portfolio allocations. It addresses some limitations of traditional MPT by incorporating investor insights and market equilibrium, resulting in more realistic and diversified portfolios.</p>
                     
                     <h3>📊 Input Fields Explained</h3>
+                    
+                    <h4>Modern Portfolio Theory (MPT) Tab</h4>
                     
                     <h4>Stock Tickers</h4>
                     <ul>
@@ -486,6 +596,29 @@ HTML_TEMPLATE = '''
                     <ul>
                         <li><strong>Maximum Sharpe Ratio:</strong> Finds the portfolio with the best risk-adjusted returns</li>
                         <li><strong>Minimum Volatility:</strong> Finds the portfolio with the lowest risk (volatility)</li>
+                    </ul>
+                    
+                    <h4>Black-Litterman Model Tab</h4>
+                    
+                    <h4>Risk-Free Rate</h4>
+                    <ul>
+                        <li><strong>Default:</strong> 2.0% (current market rate)</li>
+                        <li><strong>Purpose:</strong> Used as the baseline return for calculating excess returns and Sharpe ratios</li>
+                        <li><strong>Adjustment:</strong> Can be modified based on current market conditions</li>
+                    </ul>
+                    
+                    <h4>Investor Views</h4>
+                    <ul>
+                        <li><strong>Absolute Views:</strong> Specify expected return for specific assets (e.g., "AAPL will return 15%")</li>
+                        <li><strong>Relative Views:</strong> Specify relative performance between assets (e.g., "AAPL will outperform MSFT by 2%")</li>
+                        <li><strong>Confidence:</strong> Express your confidence in each view (0-1 scale, where 1 is highest confidence)</li>
+                        <li><strong>Optional:</strong> Leave empty to use market equilibrium returns only</li>
+                    </ul>
+                    
+                    <h4>View Examples</h4>
+                    <ul>
+                        <li><strong>Absolute:</strong> "I expect AAPL to return 15% annually" → Type: Absolute, Assets: AAPL, Return: 15%, Confidence: 0.8</li>
+                        <li><strong>Relative:</strong> "I expect AAPL to outperform MSFT by 3%" → Type: Relative, Assets: AAPL, MSFT, Return: 3%, Confidence: 0.7</li>
                     </ul>
                     
                     <h3>📈 Understanding the Results</h3>
@@ -535,6 +668,24 @@ HTML_TEMPLATE = '''
                         <li><strong>Y-axis (Expected Return):</strong> Annual return - higher values mean higher expected returns</li>
                         <li><strong>Position:</strong> Where your portfolio sits relative to the efficient frontier</li>
                         <li><strong>Improvement Potential:</strong> Distance between current and optimal positions</li>
+                    </ul>
+                    
+                    <h3>🔍 MPT vs Black-Litterman Comparison</h3>
+                    
+                    <h4>Modern Portfolio Theory (MPT)</h4>
+                    <ul>
+                        <li><strong>Approach:</strong> Uses historical data to estimate expected returns and risk</li>
+                        <li><strong>Strengths:</strong> Simple, well-established, good for historical analysis</li>
+                        <li><strong>Limitations:</strong> Sensitive to input data, may produce extreme allocations</li>
+                        <li><strong>Best for:</strong> Historical analysis, educational purposes, basic portfolio optimization</li>
+                    </ul>
+                    
+                    <h4>Black-Litterman Model</h4>
+                    <ul>
+                        <li><strong>Approach:</strong> Combines market equilibrium with investor views</li>
+                        <li><strong>Strengths:</strong> More stable allocations, incorporates personal insights, addresses MPT limitations</li>
+                        <li><strong>Features:</strong> Market equilibrium returns, investor views, confidence levels</li>
+                        <li><strong>Best for:</strong> Active portfolio management, incorporating personal views, more realistic allocations</li>
                     </ul>
                     
                     <h3>🔍 Analysis vs Optimization</h3>
@@ -618,6 +769,60 @@ HTML_TEMPLATE = '''
                 weightsGroup.style.display = 'none';
                 dollarsGroup.style.display = 'block';
             }
+        }
+
+        function toggleBLInputType() {
+            const inputType = document.getElementById('bl-inputType').value;
+            const weightsGroup = document.getElementById('bl-weightsGroup');
+            const dollarsGroup = document.getElementById('bl-dollarsGroup');
+            
+            if (inputType === 'weights') {
+                weightsGroup.style.display = 'block';
+                dollarsGroup.style.display = 'none';
+            } else {
+                weightsGroup.style.display = 'none';
+                dollarsGroup.style.display = 'block';
+            }
+        }
+
+        function addView() {
+            const container = document.getElementById('views-container');
+            const newView = document.createElement('div');
+            newView.className = 'view-entry';
+            newView.style.border = '1px solid #ddd';
+            newView.style.padding = '15px';
+            newView.style.margin = '10px 0';
+            newView.style.borderRadius = '8px';
+            newView.style.backgroundColor = '#f8f9fa';
+            
+            newView.innerHTML = `
+                <div class="form-group">
+                    <label>View Type:</label>
+                    <select class="view-type">
+                        <option value="absolute">Absolute Return</option>
+                        <option value="relative">Relative Return</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Assets:</label>
+                    <input type="text" class="view-assets" placeholder="AAPL, MSFT">
+                </div>
+                <div class="form-group">
+                    <label>Expected Return (%):</label>
+                    <input type="number" class="view-return" placeholder="15.0" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label>Confidence (0-1):</label>
+                    <input type="number" class="view-confidence" placeholder="0.7" step="0.1" min="0" max="1">
+                </div>
+                <button type="button" onclick="removeView(this)" style="background: #e74c3c;">Remove View</button>
+            `;
+            
+            container.appendChild(newView);
+        }
+
+        function removeView(button) {
+            button.parentElement.remove();
         }
 
 
@@ -785,6 +990,293 @@ HTML_TEMPLATE = '''
                 console.error('Error:', error);
                 showError('sectorResults', 'Failed to connect to API: ' + error.message);
             }
+        }
+
+        async function analyzeBlackLitterman() {
+            const tickers = document.getElementById('bl-tickers').value.split(',').map(t => t.trim());
+            const inputType = document.getElementById('bl-inputType').value;
+            const timePeriod = parseInt(document.getElementById('bl-timePeriod').value);
+            const riskFreeRate = parseFloat(document.getElementById('bl-riskFreeRate').value) / 100;
+            
+            let weights;
+            if (inputType === 'weights') {
+                weights = document.getElementById('bl-weights').value.split(',').map(w => parseFloat(w.trim()));
+            } else {
+                const dollars = document.getElementById('bl-dollars').value.split(',').map(d => parseFloat(d.trim()));
+                const total = dollars.reduce((sum, amount) => sum + amount, 0);
+                weights = dollars.map(amount => amount / total);
+            }
+            
+            if (tickers.length !== weights.length) {
+                showError('bl-analysisResults', 'Number of tickers must match number of inputs');
+                return;
+            }
+            
+            // Collect views
+            const viewEntries = document.querySelectorAll('.view-entry');
+            const views = [];
+            const confidences = [];
+            
+            for (const entry of viewEntries) {
+                const viewType = entry.querySelector('.view-type').value;
+                const assets = entry.querySelector('.view-assets').value.split(',').map(a => a.trim());
+                const viewReturn = parseFloat(entry.querySelector('.view-return').value) / 100; // Convert % to decimal
+                const confidence = parseFloat(entry.querySelector('.view-confidence').value);
+                
+                if (assets.length > 0 && !isNaN(viewReturn) && !isNaN(confidence)) {
+                    views.push({
+                        assets: assets,
+                        view: viewReturn,
+                        type: viewType
+                    });
+                    confidences.push(confidence);
+                }
+            }
+            
+            // Show progress bar
+            showBLProgress();
+            
+            try {
+                const response = await fetch('/api/blacklitterman', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        tickers, 
+                        weights, 
+                        time_period: timePeriod, 
+                        risk_free_rate: riskFreeRate,
+                        views: views.length > 0 ? views : null,
+                        confidences: confidences.length > 0 ? confidences : null
+                    })
+                });
+                
+                const data = await response.json();
+                
+                // Hide progress bar
+                hideBLProgress();
+                
+                if (response.ok) {
+                    showBlackLittermanResults(data);
+                } else {
+                    showError('bl-analysisResults', data.error || 'Black-Litterman analysis failed');
+                }
+            } catch (error) {
+                // Hide progress bar
+                hideBLProgress();
+                console.error('Error:', error);
+                showError('bl-analysisResults', 'Failed to connect to API: ' + error.message);
+            }
+        }
+
+        function showBLProgress() {
+            const progressContainer = document.getElementById('bl-progressContainer');
+            const progressFill = document.getElementById('bl-progressFill');
+            const progressText = document.getElementById('bl-progressText');
+            
+            progressContainer.style.display = 'block';
+            progressFill.style.width = '0%';
+            progressText.textContent = 'Initializing Black-Litterman analysis...';
+            
+            // Simulate progress
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress > 90) progress = 90;
+                
+                progressFill.style.width = progress + '%';
+                
+                if (progress < 30) {
+                    progressText.textContent = 'Fetching market data...';
+                } else if (progress < 60) {
+                    progressText.textContent = 'Calculating equilibrium returns...';
+                } else if (progress < 90) {
+                    progressText.textContent = 'Incorporating investor views...';
+                }
+            }, 200);
+            
+            // Store interval ID for cleanup
+            progressContainer.dataset.intervalId = progressInterval;
+        }
+
+        function hideBLProgress() {
+            const progressContainer = document.getElementById('bl-progressContainer');
+            const progressFill = document.getElementById('bl-progressFill');
+            const progressText = document.getElementById('bl-progressText');
+            
+            // Complete the progress bar
+            progressFill.style.width = '100%';
+            progressText.textContent = 'Analysis complete!';
+            
+            // Clear the interval
+            if (progressContainer.dataset.intervalId) {
+                clearInterval(parseInt(progressContainer.dataset.intervalId));
+            }
+            
+            // Hide after a short delay
+            setTimeout(() => {
+                progressContainer.style.display = 'none';
+            }, 1000);
+        }
+
+        function showBlackLittermanResults(data) {
+            const resultsDiv = document.getElementById('bl-analysisResults');
+            const analysisSection = document.getElementById('bl-analysisSection');
+            
+            // Extract current portfolio stats
+            const currentStats = data.current_portfolio.stats;
+            const analysis = data.analysis;
+            
+            let viewsHtml = '';
+            if (data.views_used) {
+                viewsHtml = `
+                    <h4>Investor Views Applied:</h4>
+                    <p>Your personal views were incorporated into the analysis, combining market equilibrium with your insights.</p>
+                `;
+            } else {
+                viewsHtml = `
+                    <h4>Market Equilibrium Only:</h4>
+                    <p>Analysis based on market equilibrium returns without additional investor views.</p>
+                `;
+            }
+            
+            resultsDiv.innerHTML = `
+                <div class="results success">
+                    <h3>Black-Litterman Analysis Results</h3>
+                    <p><strong>Model Type:</strong> ${analysis.model_type}</p>
+                    <p><strong>Analysis Period:</strong> ${analysis.time_period} of historical data</p>
+                    <p><strong>Risk-Free Rate:</strong> ${analysis.risk_free_rate}</p>
+                    ${viewsHtml}
+                    
+                    <h4>Current Portfolio Performance:</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 15px 0;">
+                        <div style="padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #3498db;">
+                            <h5 style="margin: 0 0 10px 0; color: #2c3e50;">Expected Returns</h5>
+                            <p><strong>Expected Return:</strong> ${(currentStats.return * 100).toFixed(2)}%</p>
+                            <p><strong>Volatility:</strong> ${(currentStats.volatility * 100).toFixed(2)}%</p>
+                            <p><strong>Sharpe Ratio:</strong> ${currentStats.sharpe_ratio.toFixed(3)}</p>
+                        </div>
+                        <div style="padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #e74c3c;">
+                            <h5 style="margin: 0 0 10px 0; color: #2c3e50;">Risk Metrics</h5>
+                            <p><strong>Risk-Free Rate:</strong> ${(parseFloat(analysis.risk_free_rate.replace('%', ''))).toFixed(1)}%</p>
+                            <p><strong>Excess Return:</strong> ${((currentStats.return - parseFloat(analysis.risk_free_rate.replace('%', '')) / 100) * 100).toFixed(2)}%</p>
+                            <p><strong>Risk-Adjusted Return:</strong> ${currentStats.sharpe_ratio.toFixed(3)}</p>
+                        </div>
+                    </div>
+                    
+                    <h4>Optimal Portfolio (Black-Litterman):</h4>
+                    <p><strong>Expected Return:</strong> ${(data.optimal_portfolio.stats.return * 100).toFixed(2)}%</p>
+                    <p><strong>Volatility:</strong> ${(data.optimal_portfolio.stats.volatility * 100).toFixed(2)}%</p>
+                    <p><strong>Sharpe Ratio:</strong> ${data.optimal_portfolio.stats.sharpe_ratio.toFixed(3)}</p>
+                    
+                    <h4>Optimal Allocation:</h4>
+                    <ul>
+                        ${Object.entries(data.optimal_portfolio.allocation).map(([ticker, weight]) => 
+                            `<li><strong>${ticker}:</strong> ${(weight * 100).toFixed(2)}%</li>`
+                        ).join('')}
+                    </ul>
+                    
+                    ${data.equilibrium_returns ? `
+                        <h4>Equilibrium Returns:</h4>
+                        <ul>
+                            ${data.equilibrium_returns.map((ret, idx) => 
+                                `<li><strong>${data.current_portfolio.tickers[idx]}:</strong> ${(ret * 100).toFixed(2)}%</li>`
+                            ).join('')}
+                        </ul>
+                    ` : ''}
+                    
+                    ${data.posterior_returns ? `
+                        <h4>Posterior Returns (with views):</h4>
+                        <ul>
+                            ${data.posterior_returns.map((ret, idx) => 
+                                `<li><strong>${data.current_portfolio.tickers[idx]}:</strong> ${(ret * 100).toFixed(2)}%</li>`
+                            ).join('')}
+                        </ul>
+                    ` : ''}
+                </div>
+                
+                <div class="results success">
+                    <h3>Black-Litterman Efficient Frontier</h3>
+                    <div id="bl-efficientFrontierPlot"></div>
+                </div>
+            `;
+            
+            // Show the analysis section
+            analysisSection.style.display = 'block';
+            
+            // Ensure the section is expanded when showing results
+            const content = analysisSection.querySelector('.collapsible-content');
+            const header = analysisSection.querySelector('.collapsible-header');
+            const icon = header.querySelector('.toggle-icon');
+            
+            content.classList.add('show');
+            header.classList.add('active');
+            icon.classList.add('rotated');
+            
+            // Create efficient frontier plot if data is available
+            if (data.efficient_frontier) {
+                createBLEfficientFrontierPlot(data.efficient_frontier, currentStats);
+            }
+        }
+
+        function createBLEfficientFrontierPlot(frontierData, currentStats) {
+            // Prepare data for plotting
+            const efVolatility = frontierData.map(p => p.volatility * 100);
+            const efReturns = frontierData.map(p => p.return * 100);
+            
+            const traces = [
+                {
+                    x: efVolatility,
+                    y: efReturns,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Black-Litterman Efficient Frontier',
+                    line: { color: '#8E44AD', width: 3 },
+                    hovertemplate: 'Volatility: %{x:.2f}%<br>Return: %{y:.2f}%<extra></extra>'
+                },
+                {
+                    x: [currentStats.volatility * 100],
+                    y: [currentStats.return * 100],
+                    type: 'scatter',
+                    mode: 'markers',
+                    name: 'Current Portfolio',
+                    marker: { 
+                        color: '#C73E1D', 
+                        size: 12,
+                        symbol: 'circle'
+                    },
+                    hovertemplate: 'Current Portfolio<br>Volatility: %{x:.2f}%<br>Return: %{y:.2f}%<extra></extra>'
+                }
+            ];
+            
+            const layout = {
+                title: 'Black-Litterman Efficient Frontier',
+                xaxis: {
+                    title: 'Portfolio Volatility (%)',
+                    gridcolor: '#E5E5E5'
+                },
+                yaxis: {
+                    title: 'Expected Annual Return (%)',
+                    gridcolor: '#E5E5E5'
+                },
+                plot_bgcolor: 'white',
+                paper_bgcolor: 'white',
+                font: { color: '#2C3E50' },
+                legend: {
+                    x: 0.02,
+                    y: 0.98,
+                    bgcolor: 'rgba(255,255,255,0.8)',
+                    bordercolor: '#E5E5E5'
+                },
+                margin: { l: 60, r: 30, t: 60, b: 60 }
+            };
+            
+            Plotly.newPlot('bl-efficientFrontierPlot', traces, layout, {
+                responsive: true,
+                displayModeBar: true,
+                modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d']
+            });
         }
 
         function showAnalysisResults(data) {
@@ -1503,6 +1995,77 @@ def get_recommendations():
         
         return jsonify({'recommendations': recommendations})
     
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/blacklitterman', methods=['POST'])
+def black_litterman_analysis():
+    """Black-Litterman model analysis endpoint."""
+    try:
+        data = request.json
+        tickers = data.get('tickers', [])
+        weights = data.get('weights', [])
+        time_period = data.get('time_period', 2)
+        risk_free_rate = data.get('risk_free_rate', 0.02)
+        views = data.get('views', None)
+        confidences = data.get('confidences', None)
+        
+        if not tickers or not weights:
+            return jsonify({'error': 'Please provide tickers and weights'}), 400
+        
+        if len(tickers) != len(weights):
+            return jsonify({'error': 'Number of tickers must match number of weights'}), 400
+        
+        # Validate time period
+        if time_period < 1 or time_period > 10:
+            return jsonify({'error': 'Time period must be between 1 and 10 years'}), 400
+        
+        # Use the Black-Litterman analysis function
+        results = analyze_portfolio_black_litterman(
+            tickers, 
+            weights, 
+            views=views,
+            time_period=time_period,
+            risk_free_rate=risk_free_rate
+        )
+        
+        return jsonify(results)
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/cache/info', methods=['GET'])
+def get_cache_info():
+    """Get information about cached data."""
+    try:
+        data_manager = get_data_manager()
+        info = data_manager.get_cache_info()
+        return jsonify(info)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/cache/clear', methods=['POST'])
+def clear_cache():
+    """Clear cache files."""
+    try:
+        data = request.json or {}
+        older_than_days = data.get('older_than_days', None)
+        
+        data_manager = get_data_manager()
+        data_manager.clear_cache(older_than_days)
+        
+        return jsonify({'message': 'Cache cleared successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/cache/preload', methods=['POST'])
+def preload_cache():
+    """Preload cache with common tickers."""
+    try:
+        data_manager = get_data_manager()
+        data_manager.preload_common_tickers()
+        
+        return jsonify({'message': 'Cache preloaded successfully'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

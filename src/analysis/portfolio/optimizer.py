@@ -40,52 +40,16 @@ class PortfolioOptimizer:
         self.fetch_data()
     
     def fetch_data(self):
-        """Download historical price data and calculate returns."""
+        """Fetch historical price data using efficient data manager with caching and rate limiting."""
         try:
-            # Download adjusted close prices with retry mechanism
-            data = None
-            max_retries = 3
+            # Use efficient data fetching with caching and rate limiting
+            from .data_manager import fetch_data_efficient
             
-            for attempt in range(max_retries):
-                try:
-                    data = yf.download(self.tickers, start=self.start_date, end=self.end_date, progress=False)
-                    break
-                except Exception as e:
-                    if attempt == max_retries - 1:
-                        raise e
-                    import time
-                    time.sleep(2)  # Wait 2 seconds before retry
+            # Calculate time period from start and end dates
+            time_period = max(1, (self.end_date - self.start_date).days // 365)
             
-            # Check if we got valid data
-            if data is None or data.empty:
-                raise Exception("No data received from Yahoo Finance")
-            
-            # Handle single ticker case
-            if len(self.tickers) == 1:
-                if 'Adj Close' in data.columns:
-                    data = pd.DataFrame(data['Adj Close'])
-                    data.columns = self.tickers
-                else:
-                    # Fallback to Close price if Adj Close not available
-                    data = pd.DataFrame(data['Close'])
-                    data.columns = self.tickers
-            else:
-                # Multiple tickers - check if Adj Close exists
-                if 'Adj Close' in data.columns:
-                    data = data['Adj Close']
-                else:
-                    # Fallback to Close price
-                    data = data['Close']
-            
-            # Remove any columns with all NaN values
-            data = data.dropna(axis=1, how='all')
-            
-            # Check if we have any valid data left
-            if data.empty or data.shape[1] == 0:
-                raise Exception("No valid data available for any ticker")
-            
-            # Calculate daily returns
-            self.returns = data.pct_change().dropna()
+            # Use efficient data fetching
+            self.returns = fetch_data_efficient(self.tickers, time_period)
             
             # Check if we have enough data
             if self.returns.shape[0] < 30:  # At least 30 days of data
@@ -107,33 +71,88 @@ class PortfolioOptimizer:
         # Generate synthetic data based on typical market characteristics
         np.random.seed(42)  # For reproducible results
         
-        # Create date range
+        # Create date range (ensure we have enough trading days)
         dates = pd.date_range(start=self.start_date, end=self.end_date, freq='D')
         dates = dates[dates.weekday < 5]  # Only weekdays
         
-        # Generate synthetic returns for each ticker
+        # Ensure we have at least 252 trading days (1 year)
+        if len(dates) < 252:
+            # Extend the date range if needed
+            additional_days = 252 - len(dates)
+            extended_dates = pd.date_range(start=dates[0] - pd.Timedelta(days=additional_days), 
+                                         end=dates[-1], freq='D')
+            dates = extended_dates[extended_dates.weekday < 5]
+        
+        # Generate synthetic returns for each ticker with realistic characteristics
         returns_data = {}
+        
+        # Define realistic market characteristics for different types of assets
+        asset_characteristics = {
+            'AAPL': {'base_return': 0.0008, 'volatility': 0.025},  # Tech stock
+            'MSFT': {'base_return': 0.0007, 'volatility': 0.023},  # Tech stock
+            'GOOGL': {'base_return': 0.0009, 'volatility': 0.028},  # Tech stock
+            'AMZN': {'base_return': 0.0010, 'volatility': 0.032},  # Tech stock
+            'TSLA': {'base_return': 0.0012, 'volatility': 0.045},  # High volatility tech
+            'VOO': {'base_return': 0.0006, 'volatility': 0.018},   # S&P 500 ETF
+            'VTI': {'base_return': 0.0006, 'volatility': 0.019},   # Total market ETF
+            'VXUS': {'base_return': 0.0005, 'volatility': 0.022},  # International ETF
+            'GLD': {'base_return': 0.0003, 'volatility': 0.020},   # Gold ETF
+            'TLT': {'base_return': 0.0002, 'volatility': 0.015},   # Long-term bonds
+            'AGG': {'base_return': 0.0002, 'volatility': 0.012},   # Aggregate bonds
+            'XLK': {'base_return': 0.0008, 'volatility': 0.025},   # Tech sector
+            'XLF': {'base_return': 0.0005, 'volatility': 0.022},   # Financial sector
+            'XLV': {'base_return': 0.0006, 'volatility': 0.020},   # Healthcare sector
+            'XLE': {'base_return': 0.0004, 'volatility': 0.030},   # Energy sector
+            'XLI': {'base_return': 0.0005, 'volatility': 0.021},   # Industrials sector
+            'XLY': {'base_return': 0.0007, 'volatility': 0.024},   # Consumer discretionary
+            'XLP': {'base_return': 0.0004, 'volatility': 0.016},   # Consumer staples
+            'XLB': {'base_return': 0.0005, 'volatility': 0.023},   # Materials sector
+            'XLRE': {'base_return': 0.0004, 'volatility': 0.020},  # Real estate
+            'XLU': {'base_return': 0.0003, 'volatility': 0.018},   # Utilities
+            'VNQ': {'base_return': 0.0004, 'volatility': 0.020},   # Real estate ETF
+        }
+        
         for i, ticker in enumerate(self.tickers):
-            # Generate realistic returns with some correlation
-            base_return = 0.0005  # 0.05% daily return (about 12.5% annual)
-            volatility = 0.02 + (i * 0.005)  # Varying volatility
-            
-            # Add some correlation between stocks
-            correlation_factor = 0.3
-            if i > 0:
-                # Add correlation with previous stock
-                returns_data[ticker] = (correlation_factor * returns_data[self.tickers[i-1]] + 
-                                      (1 - correlation_factor) * np.random.normal(base_return, volatility, len(dates)))
+            # Get characteristics for this ticker, or use defaults
+            if ticker in asset_characteristics:
+                char = asset_characteristics[ticker]
+                base_return = char['base_return']
+                volatility = char['volatility']
             else:
-                returns_data[ticker] = np.random.normal(base_return, volatility, len(dates))
+                # Default characteristics for unknown tickers
+                base_return = 0.0006  # 0.06% daily return (about 15% annual)
+                volatility = 0.025 + (i * 0.003)  # Varying volatility
+            
+            # Generate returns with some market correlation
+            if i == 0:
+                # First ticker - generate base market returns
+                market_factor = np.random.normal(0, 0.01, len(dates))  # Market-wide factor
+                returns_data[ticker] = np.random.normal(base_return, volatility, len(dates)) + 0.3 * market_factor
+            else:
+                # Subsequent tickers - add correlation with market and previous tickers
+                market_correlation = 0.4
+                ticker_correlation = 0.2
+                
+                # Combine market factor, correlation with previous ticker, and idiosyncratic noise
+                ticker_returns = (market_correlation * market_factor + 
+                                ticker_correlation * returns_data[self.tickers[i-1]] + 
+                                (1 - market_correlation - ticker_correlation) * np.random.normal(base_return, volatility, len(dates)))
+                returns_data[ticker] = ticker_returns
         
         # Create DataFrame
         self.returns = pd.DataFrame(returns_data, index=dates)
         self.returns = self.returns.dropna()
         
+        # Ensure we have enough data
+        if self.returns.shape[0] < 100:
+            # Duplicate data if we don't have enough
+            self.returns = pd.concat([self.returns, self.returns], axis=0)
+        
         # Calculate statistics
         self.mean_returns = self.returns.mean() * 252
         self.cov_matrix = self.returns.cov() * 252
+        
+        print(f"Generated fallback data for {len(self.tickers)} tickers with {self.returns.shape[0]} trading days")
     
     def get_inflation_rate(self):
         """
