@@ -727,6 +727,335 @@ function createOptimizationFrontierPlot(frontierData, currentStats, optimalStats
     });
 }
 
+// Black-Litterman Model Functions
+
+// Toggle Black-Litterman input type
+function toggleBLInputType() {
+    const inputType = document.getElementById('bl-inputType').value;
+    const weightsGroup = document.getElementById('bl-weightsGroup');
+    const dollarsGroup = document.getElementById('bl-dollarsGroup');
+    
+    if (inputType === 'weights') {
+        weightsGroup.style.display = 'block';
+        dollarsGroup.style.display = 'none';
+    } else {
+        weightsGroup.style.display = 'none';
+        dollarsGroup.style.display = 'block';
+    }
+}
+
+// Add investor view
+function addView() {
+    const container = document.getElementById('bl-views-container');
+    const viewItem = document.createElement('div');
+    viewItem.className = 'view-item';
+    viewItem.innerHTML = `
+        <label class="view-label">View Type:</label>
+        <select class="view-type">
+            <option value="absolute">Absolute Return</option>
+            <option value="relative">Relative Return</option>
+        </select>
+        <label class="view-label">Assets:</label>
+        <input type="text" class="view-assets" placeholder="AAPL, MSFT">
+        <label class="view-label">Expected Return (%):</label>
+        <input type="number" class="view-return" step="0.1" placeholder="5.0" value="5.0">
+        <label class="view-label">Confidence:</label>
+        <input type="number" class="view-confidence" step="0.1" min="0" max="1" placeholder="0.5" value="0.5">
+        <button type="button" onclick="removeView(this)" class="remove-view-btn">Remove</button>
+    `;
+    container.appendChild(viewItem);
+}
+
+// Remove investor view
+function removeView(button) {
+    button.parentElement.remove();
+}
+
+// Show Black-Litterman progress
+function showBLProgress() {
+    document.getElementById('bl-progressContainer').style.display = 'block';
+    document.getElementById('bl-progressFill').style.width = '0%';
+    
+    // Animate progress bar
+    let progress = 0;
+    const interval = setInterval(() => {
+        progress += Math.random() * 15;
+        if (progress > 90) progress = 90;
+        document.getElementById('bl-progressFill').style.width = progress + '%';
+    }, 200);
+    
+    return interval;
+}
+
+// Hide Black-Litterman progress
+function hideBLProgress(interval) {
+    if (interval) clearInterval(interval);
+    document.getElementById('bl-progressFill').style.width = '100%';
+    setTimeout(() => {
+        document.getElementById('bl-progressContainer').style.display = 'none';
+    }, 500);
+}
+
+// Analyze portfolio with Black-Litterman
+async function analyzeBlackLitterman() {
+    const tickers = document.getElementById('bl-tickers').value.split(',').map(t => t.trim());
+    const inputType = document.getElementById('bl-inputType').value;
+    const timePeriod = parseInt(document.getElementById('bl-timePeriod').value);
+    const riskFreeRate = parseFloat(document.getElementById('bl-riskFreeRate').value) / 100;
+    
+    let weights;
+    if (inputType === 'weights') {
+        weights = document.getElementById('bl-weights').value.split(',').map(w => parseFloat(w.trim()));
+    } else {
+        const dollars = document.getElementById('bl-dollars').value.split(',').map(d => parseFloat(d.trim()));
+        const total = dollars.reduce((sum, amount) => sum + amount, 0);
+        weights = dollars.map(amount => amount / total);
+    }
+    
+    if (tickers.length !== weights.length) {
+        showError('bl-results', 'Number of tickers must match number of inputs');
+        return;
+    }
+    
+    // Collect views
+    const viewItems = document.querySelectorAll('#bl-views-container .view-item');
+    const views = [];
+    const confidences = [];
+    
+    viewItems.forEach(item => {
+        const viewType = item.querySelector('.view-type').value;
+        const viewAssets = item.querySelector('.view-assets').value.split(',').map(a => a.trim());
+        const viewReturn = parseFloat(item.querySelector('.view-return').value) / 100; // Convert percentage to decimal
+        const viewConfidence = parseFloat(item.querySelector('.view-confidence').value);
+        
+        if (viewAssets.length > 0 && !isNaN(viewReturn) && !isNaN(viewConfidence)) {
+            views.push({
+                assets: viewAssets,
+                view: viewReturn,
+                type: viewType
+            });
+            confidences.push(viewConfidence);
+        }
+    });
+    
+    // Show progress
+    const progressInterval = showBLProgress();
+    
+    try {
+        const response = await fetch('/api/blacklitterman', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                tickers: tickers,
+                weights: weights,
+                time_period: timePeriod,
+                risk_free_rate: riskFreeRate,
+                views: views.length > 0 ? views : null,
+                confidences: confidences.length > 0 ? confidences : null
+            })
+        });
+        
+        hideBLProgress(progressInterval);
+        
+        if (response.ok) {
+            const results = await response.json();
+            showBlackLittermanResults(results);
+        } else {
+            const errorData = await response.json();
+            showError('bl-results', errorData.error || 'Analysis failed');
+        }
+    } catch (error) {
+        hideBLProgress(progressInterval);
+        showError('bl-results', 'Network error: ' + error.message);
+    }
+}
+
+// Show Black-Litterman results
+function showBlackLittermanResults(results) {
+    const resultsDiv = document.getElementById('bl-results');
+    
+    // Format returns for display
+    const formatReturns = (returns) => {
+        if (!returns) return 'N/A';
+        return Object.entries(returns).map(([ticker, ret]) => 
+            `<li><strong>${ticker}:</strong> ${(ret * 100).toFixed(2)}%</li>`
+        ).join('');
+    };
+    
+    let html = `
+        <div class="results-grid">
+            <div class="result-card">
+                <h3>📊 Current Portfolio</h3>
+                <div class="allocation-grid">
+                    <h4>Current Allocation:</h4>
+                    ${results.current_portfolio.tickers.map((ticker, i) => 
+                        `<div class="allocation-item">
+                            <span class="ticker">${ticker}</span>
+                            <span class="weight">${(results.current_portfolio.weights[i] * 100).toFixed(1)}%</span>
+                        </div>`
+                    ).join('')}
+                </div>
+            </div>
+            
+            <div class="result-card">
+                <h3>🎯 Optimal Portfolio</h3>
+                <div class="allocation-grid">
+                    <h4>Optimal Allocation:</h4>
+                    ${Object.entries(results.optimal_portfolio.allocation).map(([ticker, weight]) => 
+                        `<div class="allocation-item">
+                            <span class="ticker">${ticker}</span>
+                            <span class="weight">${(weight * 100).toFixed(1)}%</span>
+                        </div>`
+                    ).join('')}
+                </div>
+            </div>
+        </div>
+        
+        <div class="results-grid">
+            <div class="result-card">
+                <h3>📈 Expected Returns</h3>
+                <div class="returns-section">
+                                         <div class="return-item">
+                         <h4>Equilibrium Returns (Market):</h4>
+                         <ul class="returns-list">
+                             ${formatReturns(results.equilibrium_returns)}
+                         </ul>
+                     </div>
+                     ${results.posterior_returns ? `
+                         <div class="return-item">
+                             <h4>Posterior Returns (With Views):</h4>
+                             <ul class="returns-list">
+                                 ${formatReturns(results.posterior_returns)}
+                             </ul>
+                         </div>
+                     ` : ''}
+                    <div class="return-item">
+                        <h4>Current Portfolio Return:</h4>
+                        <p><strong>${(results.current_portfolio.stats.return * 100).toFixed(2)}%</strong></p>
+                    </div>
+                    <div class="return-item">
+                        <h4>Optimal Portfolio Return:</h4>
+                        <p><strong>${(results.optimal_portfolio.stats.return * 100).toFixed(2)}%</strong></p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="result-card">
+                <h3>⚠️ Risk Profile</h3>
+                <div class="risk-section">
+                    <div class="risk-item">
+                        <h4>Current Portfolio:</h4>
+                        <p><strong>Volatility:</strong> ${(results.current_portfolio.stats.volatility * 100).toFixed(2)}%</p>
+                        <p><strong>Sharpe Ratio:</strong> ${results.current_portfolio.stats.sharpe_ratio.toFixed(3)}</p>
+                    </div>
+                    <div class="risk-item">
+                        <h4>Optimal Portfolio:</h4>
+                        <p><strong>Volatility:</strong> ${(results.optimal_portfolio.stats.volatility * 100).toFixed(2)}%</p>
+                        <p><strong>Sharpe Ratio:</strong> ${results.optimal_portfolio.stats.sharpe_ratio.toFixed(3)}</p>
+                    </div>
+                    <div class="risk-item">
+                        <h4>Risk-Free Rate:</h4>
+                        <p><strong>${(results.analysis.risk_free_rate * 100).toFixed(2)}%</strong></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="model-info">
+            <h4>Model Information:</h4>
+            <p><strong>Model Type:</strong> ${results.analysis.model_type}</p>
+            <p><strong>Time Period:</strong> ${results.analysis.time_period} years</p>
+            <p><strong>Views Used:</strong> ${results.views_used ? 'Yes' : 'No'}</p>
+            ${results.views_used ? '<p><strong>Views Impact:</strong> Your investor views have been incorporated into the posterior returns calculation.</p>' : '<p><strong>Views Impact:</strong> No views provided - using market equilibrium returns only.</p>'}
+        </div>
+    `;
+    
+    resultsDiv.innerHTML = html;
+    document.getElementById('bl-resultsSection').style.display = 'block';
+    
+    // Create efficient frontier plot
+    if (results.efficient_frontier && results.efficient_frontier.length > 0) {
+        createBLEfficientFrontierPlot(results.efficient_frontier, results.current_portfolio.stats, results.optimal_portfolio.stats);
+        document.getElementById('bl-frontierSection').style.display = 'block';
+    }
+}
+
+// Create Black-Litterman efficient frontier plot
+function createBLEfficientFrontierPlot(efficientFrontier, currentStats, optimalStats) {
+    const efVolatility = efficientFrontier.map(p => p.volatility * 100);
+    const efReturns = efficientFrontier.map(p => p.return * 100);
+    const efSharpe = efficientFrontier.map(p => p.sharpe_ratio);
+    
+    const traces = [
+        {
+            x: efVolatility,
+            y: efReturns,
+            type: 'scatter',
+            mode: 'lines',
+            name: 'Efficient Frontier',
+            line: { color: '#2E86AB', width: 3 },
+            hovertemplate: 'Volatility: %{x:.2f}%<br>Return: %{y:.2f}%<br>Sharpe: %{customdata:.3f}<extra></extra>',
+            customdata: efSharpe
+        },
+        {
+            x: [currentStats.volatility * 100],
+            y: [currentStats.return * 100],
+            type: 'scatter',
+            mode: 'markers',
+            name: 'Current Portfolio',
+            marker: { 
+                color: '#C73E1D', 
+                size: 12,
+                symbol: 'circle'
+            },
+            hovertemplate: 'Current Portfolio<br>Volatility: %{x:.2f}%<br>Return: %{y:.2f}%<extra></extra>'
+        },
+        {
+            x: [optimalStats.volatility * 100],
+            y: [optimalStats.return * 100],
+            type: 'scatter',
+            mode: 'markers',
+            name: 'Optimal Portfolio',
+            marker: { 
+                color: '#27AE60', 
+                size: 12,
+                symbol: 'diamond'
+            },
+            hovertemplate: 'Optimal Portfolio<br>Volatility: %{x:.2f}%<br>Return: %{y:.2f}%<extra></extra>'
+        }
+    ];
+    
+    const layout = {
+        title: 'Black-Litterman Efficient Frontier',
+        xaxis: {
+            title: 'Portfolio Volatility (%)',
+            gridcolor: '#E5E5E5'
+        },
+        yaxis: {
+            title: 'Expected Annual Return (%)',
+            gridcolor: '#E5E5E5'
+        },
+        plot_bgcolor: 'white',
+        paper_bgcolor: 'white',
+        font: { color: '#2C3E50' },
+        legend: {
+            x: 0.02,
+            y: 0.98,
+            bgcolor: 'rgba(255,255,255,0.8)',
+            bordercolor: '#E5E5E5'
+        },
+        margin: { l: 60, r: 30, t: 60, b: 60 }
+    };
+    
+    Plotly.newPlot('bl-efficient-frontier', traces, layout, {
+        responsive: true,
+        displayModeBar: true,
+        modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d']
+    });
+}
+
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     // Check API health on page load
@@ -734,4 +1063,5 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Set up input type toggle
     toggleInputType();
+    toggleBLInputType();
 });

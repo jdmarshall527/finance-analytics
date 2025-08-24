@@ -6,7 +6,7 @@ import numpy as np
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from src.analysis.portfolio import PortfolioOptimizer, analyze_portfolio_with_period, get_sector_etfs
+from src.analysis.portfolio import PortfolioOptimizer, analyze_portfolio_with_period, get_sector_etfs, BlackLittermanModel, analyze_portfolio_black_litterman, get_data_manager
 
 
 def register_routes(app):
@@ -140,5 +140,76 @@ def register_routes(app):
             
             return jsonify(response)
         
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/blacklitterman', methods=['POST'])
+    def black_litterman_analysis():
+        """Black-Litterman model analysis endpoint."""
+        try:
+            data = request.json
+            tickers = data.get('tickers', [])
+            weights = data.get('weights', [])
+            time_period = data.get('time_period', 2)
+            risk_free_rate = data.get('risk_free_rate', 0.02)
+            views = data.get('views', None)
+            confidences = data.get('confidences', None)
+
+            if not tickers or not weights:
+                return jsonify({'error': 'Please provide tickers and weights'}), 400
+
+            if len(tickers) != len(weights):
+                return jsonify({'error': 'Number of tickers must match number of weights'}), 400
+
+            # Validate time period
+            if time_period < 1 or time_period > 10:
+                return jsonify({'error': 'Time period must be between 1 and 10 years'}), 400
+
+            # Use the Black-Litterman analysis function
+            results = analyze_portfolio_black_litterman(
+                tickers,
+                weights,
+                views=views,
+                time_period=time_period,
+                risk_free_rate=risk_free_rate
+            )
+
+            return jsonify(results)
+
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/cache/info', methods=['GET'])
+    def get_cache_info():
+        """Get information about cached data."""
+        try:
+            data_manager = get_data_manager()
+            info = data_manager.get_cache_info()
+            return jsonify(info)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/cache/clear', methods=['POST'])
+    def clear_cache():
+        """Clear cache files."""
+        try:
+            data = request.json or {}
+            older_than_days = data.get('older_than_days', None)
+            
+            data_manager = get_data_manager()
+            data_manager.clear_cache(older_than_days)
+            
+            return jsonify({'message': 'Cache cleared successfully'})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/cache/preload', methods=['POST'])
+    def preload_cache():
+        """Preload cache with common tickers."""
+        try:
+            data_manager = get_data_manager()
+            data_manager.preload_common_tickers()
+            
+            return jsonify({'message': 'Cache preloaded successfully'})
         except Exception as e:
             return jsonify({'error': str(e)}), 500

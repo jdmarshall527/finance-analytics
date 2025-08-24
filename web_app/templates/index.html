@@ -22,12 +22,13 @@
             
             <!-- Tab Navigation -->
             <div class="tab-navigation">
-                <button class="tab-button active" onclick="showTab('portfolio')">📊 Portfolio Analysis</button>
-                <button class="tab-button" onclick="showTab('help')">📖 Help & Documentation</button>
+                <button class="tab-button active" onclick="showTab('mpt')">📊 Modern Portfolio Theory</button>
+                <button class="tab-button" onclick="showTab('blacklitterman')">🎯 Black-Litterman Model</button>
+                <button class="tab-button" onclick="showTab('readme')">📖 README</button>
             </div>
             
-            <!-- Portfolio Analysis Tab -->
-            <div id="portfolio-tab" class="tab-content active">
+            <!-- Modern Portfolio Theory Tab -->
+            <div id="mpt-tab" class="tab-content active">
                 <div class="section">
                     <h2>📊 Portfolio Input</h2>
                     <div class="form-group">
@@ -129,13 +130,129 @@
                 </div>
             </div>
             
-            <!-- Help & Documentation Tab -->
-            <div id="help-tab" class="tab-content">
+            <!-- Black-Litterman Model Tab -->
+            <div id="blacklitterman-tab" class="tab-content">
+                <div class="section">
+                    <h2>🎯 Black-Litterman Model</h2>
+                    <p>Advanced portfolio optimization combining market equilibrium with investor views</p>
+                    
+                    <div class="form-group">
+                        <label for="bl-tickers">Stock Tickers (comma-separated):</label>
+                        <input type="text" id="bl-tickers" placeholder="AAPL, MSFT, GOOGL, AMZN, TSLA" value="AAPL, MSFT, GOOGL, AMZN, TSLA">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="bl-inputType">Input Type:</label>
+                        <select id="bl-inputType" onchange="toggleBLInputType()">
+                            <option value="weights">Weights (must sum to 1)</option>
+                            <option value="dollars">Dollar Amounts</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group" id="bl-weightsGroup">
+                        <label for="bl-weights">Weights (comma-separated, must sum to 1):</label>
+                        <input type="text" id="bl-weights" placeholder="0.2, 0.2, 0.2, 0.2, 0.2" value="0.2, 0.2, 0.2, 0.2, 0.2">
+                    </div>
+                    
+                    <div class="form-group" id="bl-dollarsGroup" style="display: none;">
+                        <label for="bl-dollars">Dollar Amounts (comma-separated):</label>
+                        <input type="text" id="bl-dollars" placeholder="20000, 20000, 20000, 20000, 20000" value="20000, 20000, 20000, 20000, 20000">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="bl-timePeriod">Analysis Time Period:</label>
+                        <select id="bl-timePeriod">
+                            <option value="1">1 Year</option>
+                            <option value="2" selected>2 Years</option>
+                            <option value="3">3 Years</option>
+                            <option value="4">4 Years</option>
+                            <option value="5">5 Years</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="bl-riskFreeRate">Risk-Free Rate (%):</label>
+                        <input type="number" id="bl-riskFreeRate" step="0.1" min="0" max="10" value="2.0">
+                    </div>
+                    
+                                         <div class="form-group">
+                         <label>Investor Views (Optional):</label>
+                         <div id="bl-views-container">
+                             <div class="view-item">
+                                 <label class="view-label">View Type:</label>
+                                 <select class="view-type">
+                                     <option value="absolute">Absolute Return</option>
+                                     <option value="relative">Relative Return</option>
+                                 </select>
+                                 <label class="view-label">Assets:</label>
+                                 <input type="text" class="view-assets" placeholder="AAPL, MSFT">
+                                                                   <label class="view-label">Expected Return (%):</label>
+                                  <input type="number" class="view-return" step="0.1" placeholder="5.0" value="5.0">
+                                 <label class="view-label">Confidence:</label>
+                                 <input type="number" class="view-confidence" step="0.1" min="0" max="1" placeholder="0.5" value="0.5">
+                                 <button type="button" onclick="removeView(this)" class="remove-view-btn">Remove</button>
+                             </div>
+                         </div>
+                         <button type="button" onclick="addView()" class="add-view-btn">Add View</button>
+                     </div>
+                    
+                    <div class="button-group">
+                        <button onclick="analyzeBlackLitterman()" class="analyze-btn">🎯 Analyze with Black-Litterman</button>
+                    </div>
+                    
+                    <div class="progress-container" id="bl-progressContainer" style="display: none;">
+                        <div class="progress-text" id="bl-progressText">Running Black-Litterman analysis...</div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="bl-progressFill"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="section" id="bl-resultsSection" style="display: none;">
+                    <button class="collapsible-header" onclick="toggleSection('bl-resultsSection')">
+                        🎯 Black-Litterman Results
+                        <span class="toggle-icon">▼</span>
+                    </button>
+                    <div class="collapsible-content show">
+                        <div class="section-content">
+                            <div id="bl-results"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="section" id="bl-frontierSection" style="display: none;">
+                    <button class="collapsible-header" onclick="toggleSection('bl-frontierSection')">
+                        📈 Efficient Frontier
+                        <span class="toggle-icon">▼</span>
+                    </button>
+                    <div class="collapsible-content show">
+                        <div class="section-content">
+                            <div id="bl-efficient-frontier"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- README Tab -->
+            <div id="readme-tab" class="tab-content">
                 <div class="section help-section">
                     <h2>📖 Help & Documentation</h2>
                     
-                    <h3>🎯 What is Portfolio Optimization?</h3>
-                    <p>Portfolio optimization uses Modern Portfolio Theory (MPT) to find the best allocation of assets that maximizes returns for a given level of risk, or minimizes risk for a given level of return.</p>
+                    <h3>🎯 Portfolio Optimization Models</h3>
+                    
+                    <h4>📊 Modern Portfolio Theory (MPT)</h4>
+                    <p>Modern Portfolio Theory uses historical data to find the best allocation of assets that maximizes returns for a given level of risk, or minimizes risk for a given level of return. It's based on the principle that diversification can reduce portfolio risk.</p>
+                    
+                    <h4>🎯 Black-Litterman Model</h4>
+                    <p>The Black-Litterman model combines market equilibrium returns with investor views to create more stable and intuitive portfolio allocations. It addresses some limitations of traditional MPT by incorporating forward-looking views and reducing extreme allocations.</p>
+                    
+                    <h5>Key Features:</h5>
+                    <ul>
+                        <li><strong>Market Equilibrium:</strong> Uses market capitalization weights to derive equilibrium returns</li>
+                        <li><strong>Investor Views:</strong> Incorporates your specific views about asset performance</li>
+                        <li><strong>Confidence Levels:</strong> Allows you to specify how confident you are in each view</li>
+                        <li><strong>Stable Allocations:</strong> Produces more reasonable and diversified allocations</li>
+                    </ul>
                     
                     <h3>📊 Input Fields Explained</h3>
                     
@@ -174,6 +291,16 @@
                     <ul>
                         <li><strong>Maximum Sharpe Ratio:</strong> Finds the portfolio with the best risk-adjusted returns</li>
                         <li><strong>Minimum Volatility:</strong> Finds the portfolio with the lowest risk (volatility)</li>
+                    </ul>
+                    
+                    <h4>Black-Litterman Specific Fields</h4>
+                    <ul>
+                        <li><strong>Risk-Free Rate:</strong> The risk-free rate used for calculations (default 2%)</li>
+                        <li><strong>Investor Views:</strong> Your specific views about asset performance</li>
+                        <li><strong>View Type:</strong> Absolute (expected return) or Relative (difference between assets)</li>
+                        <li><strong>View Assets:</strong> The assets your view applies to (comma-separated)</li>
+                        <li><strong>Expected Return:</strong> Your expected return for the view (as decimal, e.g., 0.05 for 5%)</li>
+                        <li><strong>Confidence:</strong> How confident you are in your view (0-1, where 1 is most confident)</li>
                     </ul>
                     
                     <h3>📈 Understanding the Results</h3>

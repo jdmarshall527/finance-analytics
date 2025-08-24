@@ -398,13 +398,13 @@ def analyze_portfolio_black_litterman(tickers, weights, views=None, time_period=
             'stats': optimal_stats,
             'allocation': {tickers[i]: optimal_weights[i] for i in range(len(tickers))}
         },
-        'equilibrium_returns': equilibrium_returns.tolist(),
-        'posterior_returns': returns_for_analysis.tolist() if views else None,
+        'equilibrium_returns': {tickers[i]: float(equilibrium_returns[i]) for i in range(len(tickers))},
+        'posterior_returns': {tickers[i]: float(returns_for_analysis[i]) for i in range(len(tickers))} if views else None,
         'efficient_frontier': efficient_frontier,
         'views_used': views is not None,
         'analysis': {
-            'time_period': f"{time_period} years",
-            'risk_free_rate': f"{risk_free_rate*100:.1f}%",
+            'time_period': time_period,
+            'risk_free_rate': risk_free_rate,
             'model_type': 'Black-Litterman'
         }
     }
