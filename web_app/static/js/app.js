@@ -914,10 +914,18 @@ function showBlackLittermanResults(results) {
         </div>
         
         <div class="results-grid">
-            <div class="result-card">
-                <h3>📈 Expected Returns</h3>
-                <div class="returns-section">
-                                         <div class="return-item">
+                         <div class="result-card">
+                 <h3>📈 Expected Returns</h3>
+                 <div class="returns-section">
+                     <div class="return-item">
+                         <h4>Current Portfolio Return:</h4>
+                         <p><strong>${(results.current_portfolio.stats.return * 100).toFixed(2)}%</strong></p>
+                     </div>
+                     <div class="return-item">
+                         <h4>Optimal Portfolio Return:</h4>
+                         <p><strong>${(results.optimal_portfolio.stats.return * 100).toFixed(2)}%</strong></p>
+                     </div>
+                     <div class="return-item">
                          <h4>Equilibrium Returns (Market):</h4>
                          <ul class="returns-list">
                              ${formatReturns(results.equilibrium_returns)}
@@ -931,16 +939,8 @@ function showBlackLittermanResults(results) {
                              </ul>
                          </div>
                      ` : ''}
-                    <div class="return-item">
-                        <h4>Current Portfolio Return:</h4>
-                        <p><strong>${(results.current_portfolio.stats.return * 100).toFixed(2)}%</strong></p>
-                    </div>
-                    <div class="return-item">
-                        <h4>Optimal Portfolio Return:</h4>
-                        <p><strong>${(results.optimal_portfolio.stats.return * 100).toFixed(2)}%</strong></p>
-                    </div>
-                </div>
-            </div>
+                 </div>
+             </div>
             
             <div class="result-card">
                 <h3>⚠️ Risk Profile</h3>
