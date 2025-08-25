@@ -48,7 +48,7 @@ class PortfolioOptimizer:
             # Calculate time period from start and end dates
             time_period = max(1, (self.end_date - self.start_date).days // 365)
             
-            # Use efficient data fetching
+            # Use efficient data fetching (includes fallback to synthetic data if needed)
             self.returns = fetch_data_efficient(self.tickers, time_period)
             
             # Check if we have enough data
@@ -62,9 +62,10 @@ class PortfolioOptimizer:
             self.cov_matrix = self.returns.cov() * 252
             
         except Exception as e:
-            # Create fallback data for demonstration purposes
-            print(f"Warning: Using fallback data due to error: {str(e)}")
-            self._create_fallback_data()
+            print(f"Error in fetch_data: {str(e)}")
+            # The data manager should have already provided fallback data
+            # If we still get here, something went wrong with the data manager
+            raise
     
     def _create_fallback_data(self):
         """Create fallback data when Yahoo Finance fails."""

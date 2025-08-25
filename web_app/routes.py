@@ -49,7 +49,11 @@ def register_routes(app):
             return jsonify(results)
         
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            import traceback
+            error_msg = f"Portfolio analysis failed: {str(e)}"
+            print(f"Portfolio analysis error: {error_msg}")
+            print(f"Traceback: {traceback.format_exc()}")
+            return jsonify({'error': error_msg}), 500
     
     @app.route('/api/health', methods=['GET'])
     def health_check():
@@ -63,7 +67,11 @@ def register_routes(app):
             sector_etfs = get_sector_etfs()
             return jsonify({'sectors': sector_etfs})
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            import traceback
+            error_msg = f"Sector data fetch failed: {str(e)}"
+            print(f"Sector data error: {error_msg}")
+            print(f"Traceback: {traceback.format_exc()}")
+            return jsonify({'error': error_msg}), 500
     
     @app.route('/api/optimize', methods=['POST'])
     def optimize_portfolio():
@@ -141,7 +149,11 @@ def register_routes(app):
             return jsonify(response)
         
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            import traceback
+            error_msg = f"Portfolio optimization failed: {str(e)}"
+            print(f"Portfolio optimization error: {error_msg}")
+            print(f"Traceback: {traceback.format_exc()}")
+            return jsonify({'error': error_msg}), 500
     
     @app.route('/api/blacklitterman', methods=['POST'])
     def black_litterman_analysis():
@@ -177,7 +189,11 @@ def register_routes(app):
             return jsonify(results)
 
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            import traceback
+            error_msg = f"Analysis failed: {str(e)}"
+            print(f"Black-Litterman analysis error: {error_msg}")
+            print(f"Traceback: {traceback.format_exc()}")
+            return jsonify({'error': error_msg}), 500
     
     @app.route('/api/cache/info', methods=['GET'])
     def get_cache_info():
@@ -187,7 +203,11 @@ def register_routes(app):
             info = data_manager.get_cache_info()
             return jsonify(info)
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            import traceback
+            error_msg = f"Cache info fetch failed: {str(e)}"
+            print(f"Cache info error: {error_msg}")
+            print(f"Traceback: {traceback.format_exc()}")
+            return jsonify({'error': error_msg}), 500
 
     @app.route('/api/cache/clear', methods=['POST'])
     def clear_cache():
@@ -201,7 +221,11 @@ def register_routes(app):
             
             return jsonify({'message': 'Cache cleared successfully'})
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            import traceback
+            error_msg = f"Cache clear failed: {str(e)}"
+            print(f"Cache clear error: {error_msg}")
+            print(f"Traceback: {traceback.format_exc()}")
+            return jsonify({'error': error_msg}), 500
 
     @app.route('/api/cache/preload', methods=['POST'])
     def preload_cache():
@@ -212,4 +236,8 @@ def register_routes(app):
             
             return jsonify({'message': 'Cache preloaded successfully'})
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            import traceback
+            error_msg = f"Cache preload failed: {str(e)}"
+            print(f"Cache preload error: {error_msg}")
+            print(f"Traceback: {traceback.format_exc()}")
+            return jsonify({'error': error_msg}), 500
